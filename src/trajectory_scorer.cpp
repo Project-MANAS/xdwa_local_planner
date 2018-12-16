@@ -9,5 +9,17 @@ namespace xdwa_local_planner{
 
     TrajectoryScorer::~TrajectoryScorer() {}
 
-    double TrajectoryScorer::scoreTrajectory(Trajectory tj) {}
+    double TrajectoryScorer::getTrajectoryScore(std::shared_ptr<Trajectory> tj) {
+        double traj_cost = 0;
+        for(auto critic : critics_list_){
+            double scale = critic->getScale();
+            if(scale == 0)
+                continue;
+            double cost = critic->scoreTrajectory(tj);
+            if(cost == -1)
+                return -1;
+            traj_cost += cost * scale;
+        }
+        return traj_cost;
+    }
 }
