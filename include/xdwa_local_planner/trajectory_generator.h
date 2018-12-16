@@ -20,23 +20,18 @@ namespace xdwa_local_planner{
         TrajectoryGenerator();
         ~TrajectoryGenerator();
         void generateSamples();
-        bool generateTrajectory(double pose_x, double pose_y, double pose_theta, double vel_x,
-                                double vel_y, double vel_theta, Trajectory* traj);
+        bool generateTrajectory(std::shared_ptr<VelocitySample> vs, double pose_x, double pose_y, double pose_theta,
+                                double vel_x, double vel_y, double vel_theta, double sim_time, int num_steps, std::shared_ptr<Trajectory> traj);
+
 
         std::vector<std::shared_ptr<VelocitySample>> vsamples_;
+        bool samples_generated_;
     private:
-        bool generateTrajectory(std::shared_ptr<VelocitySample> vs, double pose_x, double pose_y, double pose_theta,
-                double vel_x, double vel_y, double vel_theta, double sim_time, int num_steps, Trajectory* traj);
         void computeNewPose(double &x, double &y, double &theta, double vel_x, double vel_y, double vel_theta, double dt);
 
-        bool samples_generated_;
-
         int num_samples_x_, num_samples_y_, num_samples_theta_;
-        int depth_;
-        int num_best_traj_;
-        int num_steps_;
 
-        double sim_time_, sim_period_;
+        double sim_period_;
 
         double min_vel_x_, min_vel_y_, min_vel_theta_;
         double max_vel_x_, max_vel_y_, max_vel_theta_;

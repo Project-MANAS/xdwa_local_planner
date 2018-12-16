@@ -26,8 +26,6 @@ namespace xdwa_local_planner{
         min_rot_vel_ = 0;
         max_rot_vel_ = 5;
         sim_period_ = 0.05;
-        depth_ = 1;
-        num_best_traj_ = 1;
         samples_generated_ = false;
     }
 
@@ -57,40 +55,17 @@ namespace xdwa_local_planner{
                 }
             }
         }
-        Trajectory tj;
-        tj.num_points_ = 0;
-        std::cout<<**(--vsamples_.end());
-        generateTrajectory(*--vsamples_.end(), 20, 1, 1, 4.95, 0, 0, 5, 5, &tj);
-        std::cout<<tj;
+//        Trajectory tj;
+//        tj.num_points_ = 0;
+//        std::cout<<**(--vsamples_.end());
+//        generateTrajectory(*--vsamples_.end(), 20, 1, 1, 4.95, 0, 0, 5, 5, &tj);
+//        std::cout<<tj;
 
         samples_generated_ = true;
     }
 
-    bool TrajectoryGenerator::generateTrajectory(double pose_x, double pose_y, double pose_theta, double vel_x,
-            double vel_y, double vel_theta, Trajectory* traj) {
-        if(!samples_generated_){
-            return false;
-        }
-
-        double x = pose_x;
-        double y = pose_y;
-        double theta = pose_theta;
-        double xv = vel_x;
-        double yv = vel_y;
-        double thetav = vel_theta;
-
-        std::vector<Trajectory> trajectories;
-        for (auto &vsample : vsamples_) {
-            Trajectory tj;
-            if(generateTrajectory(vsample, x, y, theta, xv, yv, thetav, sim_time_, num_steps_, &tj)) {
-                if(TrajectoryScorer::scoreTrajectory(tj) >= 0)
-                    trajectories.push_back(tj);
-            }
-        }
-    }
-
     bool TrajectoryGenerator::generateTrajectory(std::shared_ptr<VelocitySample> vs, double pose_x, double pose_y,
-            double pose_theta, double vel_x, double vel_y, double vel_theta, double sim_time, int num_steps, Trajectory* traj) {
+            double pose_theta, double vel_x, double vel_y, double vel_theta, double sim_time, int num_steps, std::shared_ptr<Trajectory> traj) {
         if(vs->vminsample_x_ > vel_x || vs->vmaxsample_x_ < vel_x)
             return false;
         if(vs->vminsample_y_ > vel_y || vs->vmaxsample_y_ < vel_y)
@@ -109,6 +84,7 @@ namespace xdwa_local_planner{
             traj->vel_theta_.push_back(vs->vsample_theta_);
             ++traj->num_points_;
         }
+        return true;
     }
 
     void TrajectoryGenerator::computeNewPose(double &x, double &y, double &theta, double vel_x, double vel_y,
@@ -117,8 +93,6 @@ namespace xdwa_local_planner{
         y = y + ((vel_x * sin(theta)) + (vel_y * cos(theta)) * dt);
         theta = theta + vel_theta * dt;
     }
-
-
 }
 
 int main(){

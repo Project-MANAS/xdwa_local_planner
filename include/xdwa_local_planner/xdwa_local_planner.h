@@ -16,9 +16,17 @@ namespace xdwa_local_planner{
 
     private:
         void computeTwist();
+        bool computeBestTrajectory(std::shared_ptr<Trajectory> best_traj);
+        std::vector<std::shared_ptr<Trajectory>> getBestTrajectories(std::vector<std::shared_ptr<Trajectory>> trajectories);
 
-        Trajectory traj;
-        TrajectoryGenerator tg;
+        int depth_;
+        int num_best_traj_;
+        int num_steps_;
+
+        double sim_time_, sim_period_;
+
+        TrajectoryGenerator tg_;
+        TrajectoryScorer ts_;
 
         double pose_x_, pose_y_, pose_theta_;
         double vel_x_, vel_y_, vel_theta_;
