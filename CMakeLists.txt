@@ -11,6 +11,7 @@ add_library(lib
         src/trajectory.cpp
         src/trajectory_generator.cpp
         src/trajectory_scorer.cpp
+        src/costmap_score_function.cpp
         )
 
 add_executable(test src/trajectory_generator.cpp)
