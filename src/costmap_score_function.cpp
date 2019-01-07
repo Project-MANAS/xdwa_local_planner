@@ -11,7 +11,7 @@ namespace xdwa_local_planner{
 
     double CostmapScoreFunction::scoreTrajectory(std::shared_ptr<Trajectory> tj) {
         double cost = 0;
-        for(int i = tj->num_points_scored_; i < tj->num_points_; ++i){
+        for(int i = tj->num_points_scored_ + 1; i <= tj->num_points_; ++i){
             unsigned int mx, my;
             if(!worldToMap(tj->x_[i], tj->y_[i], mx, my))
                 return -1;

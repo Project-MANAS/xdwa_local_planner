@@ -28,8 +28,12 @@ namespace xdwa_local_planner{
             std::shared_ptr<Trajectory> tj = std::make_shared<Trajectory>();
             if(tg_.generateTrajectory(vsample, pose_x_, pose_y_, pose_theta_, vel_x_, vel_y_, vel_theta_, sim_time_, num_steps_, tj)) {
                 tj->cost_ = 0;
-                if(ts_.getTrajectoryScore(tj) >= 0)
+                tj->num_points_ = 0;
+                tj->num_points_scored_ = 0;
+                if(ts_.getTrajectoryScore(tj) >= 0){
+                    tj->num_points_scored_ = tj->num_points_;
                     trajectories.push_back(tj);
+                }
             }
         }
         if(trajectories.empty())
@@ -43,16 +47,17 @@ namespace xdwa_local_planner{
                 for(auto &vsample: tg_.vsamples_){
                     if(tg_.generateTrajectory(vsample, tj->x_.back(), tj->y_.back(), tj->theta_.back(), tj->vel_x_.back(),
                             tj->vel_y_.back(), tj->vel_theta_.back(), sim_time_, num_steps_, tj)){
-                        tj->cost_ = 0;
-                        if(ts_.getTrajectoryScore(tj) >= 0)
+                        if(ts_.getTrajectoryScore(tj) >= 0) {
+                            tj->num_points_scored_ = tj->num_points_;
                             traj.push_back(tj);
+                        }
                     }
                 }
             }
             trajectories = traj;
+            if(trajectories.empty())
+                return false;
         }
-        if(trajectories.empty())
-            return false;
 
         best_traj = trajectories[0];
         for(auto &traj: trajectories){
@@ -67,11 +72,13 @@ namespace xdwa_local_planner{
         for(int i = 0; i < num_best_traj_ && i < trajectories.size(); ++i){
             auto tj = trajectories[i];
             int j = i;
-            for(auto traj = trajectories[i]; j < trajectories.size(); traj = trajectories[j++]){
+            for(auto traj = trajectories[i]; j < trajectories.size(); traj = trajectories[++j]){
                 if(tj->cost_ >= traj->cost_){
                     tj = traj;
                 }
             }
+            trajectories[j] = trajectories[i];
+            trajectories[i] = tj;
             best_traj.push_back(tj);
         }
         return best_traj;

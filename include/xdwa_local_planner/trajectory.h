@@ -21,7 +21,7 @@ namespace xdwa_local_planner{
         std::vector<double> vel_x_, vel_y_, vel_theta_;
         double cost_;
 
-        int num_points_;
+        int num_points_, num_points_scored_;
     };
 }
 
