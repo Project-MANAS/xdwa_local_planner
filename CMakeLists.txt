@@ -40,7 +40,7 @@ include_directories(
         include
 )
 
-add_library(dwa_local_planner
+add_library(xdwa_local_planner_ros
         src/xdwa_local_planner.cpp
         src/velocity_sample.cpp
         src/trajectory.cpp
@@ -49,12 +49,25 @@ add_library(dwa_local_planner
         src/costmap_score_function.cpp
         )
 
-ament_target_dependencies(dwa_local_planner
+ament_target_dependencies(xdwa_local_planner_ros
         rclcpp
         geometry_msgs
         nav_msgs
         tf2
         tf2_ros
         tf2_geometry_msgs)
+
+#add_executable(xdwa_local_planner_node src/xdwa_local_planner_node.cpp)
+#target_link_libraries(xdwa_local_planner_node xdwa_local_planner_ros)
+#ament_target_dependencies(xdwa_local_planner_node rclcpp )
+#
+#install(TARGETS xdwa_local_planner_node
+#        DESTINATION bin/${PROJECT_NAME})
+
+install(TARGETS xdwa_local_planner_ros
+        DESTINATION lib/${PROJECT_NAME})
+
+install(DIRECTORY launch
+        DESTINATION share/${PROJECT_NAME}/)
 
 ament_package()

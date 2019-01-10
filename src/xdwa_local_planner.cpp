@@ -6,24 +6,28 @@
 
 namespace xdwa_local_planner{
     XDWALocalPlanner::XDWALocalPlanner() :
-        Node("costmap_ros"),
-        control_freq_(10.0),
-        global_frame_("map"),
-        base_frame_("base_link"),
-        xy_goal_tolerance_(0),
-        yaw_goal_tolerance_(0),
-        buffer_(get_clock()),
-        tfl(buffer_),
-        transform_tolerance_(1.0),
-        odom_topic_("/odom"),
-        vel_init_(false),
-        goal_topic_("/goal")
+            Node("costmap_ros"),
+            control_freq_(10.0),
+            global_frame_("map"),
+            base_frame_("base_link"),
+            xy_goal_tolerance_(0),
+            yaw_goal_tolerance_(0),
+            buffer_(get_clock()),
+            tfl(buffer_),
+            transform_tolerance_(1.0),
+            odom_topic_("/odom"),
+            vel_init_(false),
+            goal_topic_("/goal"),
+            cmd_vel_topic_("/cmd_vel")
     {
         odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>
                 (odom_topic_, std::bind(&XDWALocalPlanner::velocityCallback, this, std::placeholders::_1));
 
         goal_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>
                 (goal_topic_, std::bind(&XDWALocalPlanner::computeTwist, this, std::placeholders::_1));
+
+        cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(cmd_vel_topic_);
+
         tg_.generateSamples();
     }
 
@@ -41,7 +45,6 @@ namespace xdwa_local_planner{
 
         rclcpp::Rate rate(1.0);
         while (!getLocalGoal(goal)) {
-            RCLCPP_INFO(this->get_logger(), "Could not get robot pose");
             rate.sleep();
         }
 
@@ -49,8 +52,16 @@ namespace xdwa_local_planner{
         while(!goalReached(goal)){
             rclcpp::Time start = get_clock()->now();
             std::shared_ptr<Trajectory> best_traj;
-            if(!computeBestTrajectory(best_traj))
-                std::cout<<"!!!I am stuck!!!";
+            if(computeBestTrajectory(best_traj)) {
+                cmd_vel_.linear.x = best_traj->vel_x_[0];
+                cmd_vel_.linear.y = best_traj->vel_y_[0];
+                cmd_vel_.angular.z = best_traj->vel_theta_[0];
+                cmd_vel_pub_->publish(cmd_vel_);
+            }
+            else {
+                RCLCPP_INFO(this->get_logger(), "XDWA Local Planner failed to produce a valid path.");
+            }
+
             control_rate.sleep();
             rclcpp::Time finish = get_clock()->now();
             double time_taken = (finish.nanoseconds() - start.nanoseconds()) / 1e9;
@@ -141,7 +152,7 @@ namespace xdwa_local_planner{
             for(auto &tj : trajectories){
                 for(auto &vsample: tg_.vsamples_){
                     if(tg_.generateTrajectory(vsample, tj->x_.back(), tj->y_.back(), tj->theta_.back(), tj->vel_x_.back(),
-                            tj->vel_y_.back(), tj->vel_theta_.back(), sim_time_, num_steps_, tj)){
+                                              tj->vel_y_.back(), tj->vel_theta_.back(), sim_time_, num_steps_, tj)){
                         if(ts_.getTrajectoryScore(tj) >= 0) {
                             tj->num_points_scored_ = tj->num_points_;
                             traj.push_back(tj);

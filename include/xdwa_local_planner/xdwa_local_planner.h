@@ -65,6 +65,9 @@ namespace xdwa_local_planner{
         double pose_x_, pose_y_, pose_theta_;
         double vel_x_, vel_y_, vel_theta_;
 
+        std::string cmd_vel_topic_;
+        geometry_msgs::msg::Twist cmd_vel_;
+        rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
     };
 }
 
