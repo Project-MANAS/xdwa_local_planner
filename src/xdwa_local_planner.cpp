@@ -5,7 +5,25 @@
 #include "xdwa_local_planner/xdwa_local_planner.h"
 
 namespace xdwa_local_planner{
-    XDWALocalPlanner::XDWALocalPlanner(){
+    XDWALocalPlanner::XDWALocalPlanner() :
+        Node("costmap_ros"),
+        control_freq_(10.0),
+        global_frame_("map"),
+        base_frame_("base_link"),
+        xy_goal_tolerance_(0),
+        yaw_goal_tolerance_(0),
+        buffer_(get_clock()),
+        tfl(buffer_),
+        transform_tolerance_(1.0),
+        odom_topic_("/odom"),
+        vel_init_(false),
+        goal_topic_("/goal")
+    {
+        odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>
+                (odom_topic_, std::bind(&XDWALocalPlanner::velocityCallback, this, std::placeholders::_1));
+
+        goal_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>
+                (goal_topic_, std::bind(&XDWALocalPlanner::computeTwist, this, std::placeholders::_1));
         tg_.generateSamples();
     }
 
@@ -13,10 +31,87 @@ namespace xdwa_local_planner{
 
     }
 
-    void XDWALocalPlanner::computeTwist() {
-        std::shared_ptr<Trajectory> best_traj;
-        if(!computeBestTrajectory(best_traj))
-            std::cout<<"!!!I am stuck!!!";
+    void XDWALocalPlanner::computeTwist(geometry_msgs::msg::PoseStamped::SharedPtr goal) {
+        geometry_msgs::msg::PoseStamped pose;
+        pose.pose = odom_.pose.pose;
+        if (!getRobotPose(pose)) {
+            RCLCPP_INFO(this->get_logger(), "Could not get robot pose");
+            return;
+        }
+
+        rclcpp::Rate rate(1.0);
+        while (!getLocalGoal(goal)) {
+            RCLCPP_INFO(this->get_logger(), "Could not get robot pose");
+            rate.sleep();
+        }
+
+        rclcpp::Rate control_rate(control_freq_);
+        while(!goalReached(goal)){
+            rclcpp::Time start = get_clock()->now();
+            std::shared_ptr<Trajectory> best_traj;
+            if(!computeBestTrajectory(best_traj))
+                std::cout<<"!!!I am stuck!!!";
+            control_rate.sleep();
+            rclcpp::Time finish = get_clock()->now();
+            double time_taken = (finish.nanoseconds() - start.nanoseconds()) / 1e9;
+            if (time_taken > 1.0 / control_freq_) {
+                RCLCPP_WARN(this->get_logger(),
+                            "Control loop failed. Desired frequency is %fHz. The loop actually took %f seconds",
+                            control_freq_, time_taken);
+            }
+        }
+
+        RCLCPP_INFO(this->get_logger(), "Goal Reached");
+    }
+
+    bool XDWALocalPlanner::getRobotPose(geometry_msgs::msg::PoseStamped &pose) {
+        pose.header.frame_id = base_frame_;
+        pose.header.stamp = get_clock()->now();
+        rclcpp::Time start = get_clock()->now();
+        try {
+            rclcpp::Time time = rclcpp::Time(0);
+            tf2::TimePoint tf2_time(std::chrono::nanoseconds(time.nanoseconds()));
+            geometry_msgs::msg::TransformStamped tfp = buffer_.lookupTransform("odom", global_frame_, tf2_time);
+            tf2::doTransform(pose, pose, tfp);
+        }
+        catch (tf2::TransformException &ex) {
+            RCLCPP_WARN(this->get_logger(), "%s", ex.what());
+            return false;
+        }
+        rclcpp::Time finish = get_clock()->now();
+        if ((finish.seconds() - start.seconds()) > transform_tolerance_) {
+            RCLCPP_WARN(this->get_logger(),
+                        "XDWA Local Planner %s to %s transform timed out. Current time: %d, global_pose stamp %d, tolerance %d",
+                        global_frame_.c_str(), base_frame_.c_str(), RCL_NS_TO_S(finish.nanoseconds()), pose.header.stamp,
+                        transform_tolerance_);
+        }
+        return true;
+    }
+
+    bool XDWALocalPlanner::getLocalGoal(geometry_msgs::msg::PoseStamped::SharedPtr goal) {
+        rclcpp::Time start = get_clock()->now();
+        try {
+            rclcpp::Time time = rclcpp::Time(0);
+            tf2::TimePoint tf2_time(std::chrono::nanoseconds(time.nanoseconds()));
+            geometry_msgs::msg::TransformStamped tfp = buffer_.lookupTransform("odom", goal->header.frame_id, tf2_time);
+            tf2::doTransform(goal, goal, tfp);
+        }
+        catch (tf2::TransformException &ex) {
+            RCLCPP_WARN(this->get_logger(), "%s", ex.what());
+            return false;
+        }
+        rclcpp::Time finish = get_clock()->now();
+        if ((finish.seconds() - start.seconds()) > transform_tolerance_) {
+            RCLCPP_WARN(this->get_logger(),
+                        "XDWA Local Planner %s to odom transform timed out. Current time: %d, global_pose stamp %d, tolerance %d",
+                        goal->header.frame_id.c_str(), RCL_NS_TO_S(finish.nanoseconds()), goal->header.stamp,
+                        transform_tolerance_);
+        }
+        return true;
+    }
+
+    bool XDWALocalPlanner::goalReached(geometry_msgs::msg::PoseStamped::SharedPtr goal) {
+        return hypot(goal->pose.position.x - odom_.pose.pose.position.x, goal->pose.position.y - odom_.pose.pose.position.y) < xy_goal_tolerance_;
     }
 
     bool XDWALocalPlanner::computeBestTrajectory(std::shared_ptr<Trajectory> best_traj) {
@@ -82,5 +177,10 @@ namespace xdwa_local_planner{
             best_traj.push_back(tj);
         }
         return best_traj;
+    }
+
+    void XDWALocalPlanner::velocityCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
+        odom_ = *msg;
+        vel_init_ = true;
     }
 }

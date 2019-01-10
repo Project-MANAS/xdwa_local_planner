@@ -5,19 +5,53 @@
 #ifndef XDWA_LOCAL_PLANNER_XDWA_LOCAL_PLANNER_H
 #define XDWA_LOCAL_PLANNER_XDWA_LOCAL_PLANNER_H
 
+#include "rclcpp/rclcpp.hpp"
+#include "tf2/utils.h"
+#include "tf2_ros/transform_listener.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "nav_msgs/msg/odometry.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+
 #include "xdwa_local_planner/trajectory.h"
 #include "xdwa_local_planner/trajectory_generator.h"
 
 namespace xdwa_local_planner{
-    class XDWALocalPlanner{
+    class XDWALocalPlanner : public rclcpp::Node {
     public:
         XDWALocalPlanner();
         ~XDWALocalPlanner();
 
     private:
-        void computeTwist();
+        void computeTwist(geometry_msgs::msg::PoseStamped::SharedPtr goal);
+
+        bool getRobotPose(geometry_msgs::msg::PoseStamped &pose);
+
+        bool getLocalGoal(geometry_msgs::msg::PoseStamped::SharedPtr goal);
+
+        bool goalReached(geometry_msgs::msg::PoseStamped::SharedPtr goal);
+
+        void velocityCallback(nav_msgs::msg::Odometry::SharedPtr msg);
+
         bool computeBestTrajectory(std::shared_ptr<Trajectory> best_traj);
+
         std::vector<std::shared_ptr<Trajectory>> getBestTrajectories(std::vector<std::shared_ptr<Trajectory>> trajectories);
+
+        double control_freq_;
+        std::string global_frame_, base_frame_;
+        double xy_goal_tolerance_, yaw_goal_tolerance_;
+
+        tf2::Duration duration = tf2::Duration(std::chrono::seconds(1));
+        tf2_ros::Buffer buffer_;
+        tf2_ros::TransformListener tfl;
+        double transform_tolerance_;
+
+        rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+        nav_msgs::msg::Odometry odom_;
+        std::string odom_topic_;
+        bool vel_init_;
+
+        rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr goal_sub_;
+        std::string goal_topic_;
 
         int depth_;
         int num_best_traj_;
@@ -30,6 +64,7 @@ namespace xdwa_local_planner{
 
         double pose_x_, pose_y_, pose_theta_;
         double vel_x_, vel_y_, vel_theta_;
+
     };
 }
 

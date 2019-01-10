@@ -95,7 +95,7 @@ namespace xdwa_local_planner{
     }
 }
 
-int main(){
-    xdwa_local_planner::TrajectoryGenerator tg;
-    tg.generateSamples();
-}
+//int main(){
+//    xdwa_local_planner::TrajectoryGenerator tg;
+//    tg.generateSamples();
+//}
