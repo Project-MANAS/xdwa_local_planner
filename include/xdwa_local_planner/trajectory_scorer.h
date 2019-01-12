@@ -14,9 +14,14 @@ namespace xdwa_local_planner{
     class TrajectoryScorer{
     public:
         TrajectoryScorer();
+
         ~TrajectoryScorer();
+
+        void loadPlugin(std::shared_ptr<TrajectoryScoreFunction> plugin);
+
         double getTrajectoryScore(std::shared_ptr<Trajectory> tj);
-        std::vector<TrajectoryScoreFunction*> critics_list_;
+
+        std::vector<std::shared_ptr<xdwa_local_planner::TrajectoryScoreFunction>> critics_list_;
     };
 }
 

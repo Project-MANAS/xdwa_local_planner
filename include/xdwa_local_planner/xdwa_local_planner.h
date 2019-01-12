@@ -11,9 +11,12 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "pluginlib/class_loader.hpp"
+#include "pluginlib/exceptions.hpp"
 
 #include "xdwa_local_planner/trajectory.h"
 #include "xdwa_local_planner/trajectory_generator.h"
+#include "xdwa_local_planner/trajectory_score_function.h"
 
 namespace xdwa_local_planner{
     class XDWALocalPlanner : public rclcpp::Node {
@@ -21,10 +24,20 @@ namespace xdwa_local_planner{
         XDWALocalPlanner();
         ~XDWALocalPlanner();
 
+        void pluginLoader(std::string type);
+
+        std::string getCostmapTopic() {
+            return costmap_topic_;
+        }
+
+        std::vector<std::vector<double>> getRobotFootprint() {
+            return footprint_;
+        }
+
     private:
         void computeTwist(geometry_msgs::msg::PoseStamped::SharedPtr goal);
 
-        bool getRobotPose(geometry_msgs::msg::PoseStamped &pose);
+        bool getRobotPose();
 
         bool getLocalGoal(geometry_msgs::msg::PoseStamped::SharedPtr goal);
 
@@ -45,6 +58,7 @@ namespace xdwa_local_planner{
         tf2_ros::TransformListener tfl;
         double transform_tolerance_;
 
+        geometry_msgs::msg::PoseStamped pose_;
         rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
         nav_msgs::msg::Odometry odom_;
         std::string odom_topic_;
@@ -68,6 +82,11 @@ namespace xdwa_local_planner{
         std::string cmd_vel_topic_;
         geometry_msgs::msg::Twist cmd_vel_;
         rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
+
+        std::vector<std::string> plugins_list_;
+        pluginlib::ClassLoader<xdwa_local_planner::TrajectoryScoreFunction> plugin_loader_;
+        std::string costmap_topic_;
+        std::vector<std::vector<double>> footprint_;
     };
 }
 

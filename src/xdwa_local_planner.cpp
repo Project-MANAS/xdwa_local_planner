@@ -18,7 +18,8 @@ namespace xdwa_local_planner{
             odom_topic_("/odom"),
             vel_init_(false),
             goal_topic_("/goal"),
-            cmd_vel_topic_("/cmd_vel")
+            cmd_vel_topic_("/cmd_vel"),
+            plugin_loader_("xdwa_local_planner", "xdwa_local_planner::TrajectoryScoreFunction")
     {
         odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>
                 (odom_topic_, std::bind(&XDWALocalPlanner::velocityCallback, this, std::placeholders::_1));
@@ -29,16 +30,33 @@ namespace xdwa_local_planner{
         cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(cmd_vel_topic_);
 
         tg_.generateSamples();
+
+        plugins_list_.emplace_back("xdwa_local_planner::CostmapScoreFunction");
+        for (const std::string &type : plugins_list_) {
+            pluginLoader(type);
+        }
     }
 
-    XDWALocalPlanner::~XDWALocalPlanner(){
+    XDWALocalPlanner::~XDWALocalPlanner(){}
 
+    void XDWALocalPlanner::pluginLoader(std::string type) {
+        RCLCPP_INFO(this->get_logger(), "Loading class %s", type.c_str());
+        try {
+            std::shared_ptr<TrajectoryScoreFunction> plugin = plugin_loader_.createSharedInstance(type);
+            ts_.loadPlugin(plugin);
+            plugin->initialize(shared_from_this(), getCostmapTopic(), getRobotFootprint());
+        }
+        catch (pluginlib::LibraryLoadException &e) {
+            RCLCPP_ERROR(this->get_logger(), "Class %s does not exist", type.c_str());
+        }
+        catch (...) {
+            RCLCPP_ERROR(this->get_logger(), "Could not load class %s", type.c_str());
+        }
     }
 
     void XDWALocalPlanner::computeTwist(geometry_msgs::msg::PoseStamped::SharedPtr goal) {
-        geometry_msgs::msg::PoseStamped pose;
-        pose.pose = odom_.pose.pose;
-        if (!getRobotPose(pose)) {
+        pose_.pose = odom_.pose.pose;
+        if (!getRobotPose()) {
             RCLCPP_INFO(this->get_logger(), "Could not get robot pose");
             return;
         }
@@ -75,15 +93,15 @@ namespace xdwa_local_planner{
         RCLCPP_INFO(this->get_logger(), "Goal Reached");
     }
 
-    bool XDWALocalPlanner::getRobotPose(geometry_msgs::msg::PoseStamped &pose) {
-        pose.header.frame_id = base_frame_;
-        pose.header.stamp = get_clock()->now();
+    bool XDWALocalPlanner::getRobotPose() {
+        pose_.header.frame_id = base_frame_;
+        pose_.header.stamp = get_clock()->now();
         rclcpp::Time start = get_clock()->now();
         try {
             rclcpp::Time time = rclcpp::Time(0);
             tf2::TimePoint tf2_time(std::chrono::nanoseconds(time.nanoseconds()));
             geometry_msgs::msg::TransformStamped tfp = buffer_.lookupTransform("odom", global_frame_, tf2_time);
-            tf2::doTransform(pose, pose, tfp);
+            tf2::doTransform(pose_, pose_, tfp);
         }
         catch (tf2::TransformException &ex) {
             RCLCPP_WARN(this->get_logger(), "%s", ex.what());
@@ -93,7 +111,7 @@ namespace xdwa_local_planner{
         if ((finish.seconds() - start.seconds()) > transform_tolerance_) {
             RCLCPP_WARN(this->get_logger(),
                         "XDWA Local Planner %s to %s transform timed out. Current time: %d, global_pose stamp %d, tolerance %d",
-                        global_frame_.c_str(), base_frame_.c_str(), RCL_NS_TO_S(finish.nanoseconds()), pose.header.stamp,
+                        global_frame_.c_str(), base_frame_.c_str(), finish.seconds(), pose_.header.stamp,
                         transform_tolerance_);
         }
         return true;
@@ -105,7 +123,7 @@ namespace xdwa_local_planner{
             rclcpp::Time time = rclcpp::Time(0);
             tf2::TimePoint tf2_time(std::chrono::nanoseconds(time.nanoseconds()));
             geometry_msgs::msg::TransformStamped tfp = buffer_.lookupTransform("odom", goal->header.frame_id, tf2_time);
-            tf2::doTransform(goal, goal, tfp);
+            tf2::doTransform(*goal, *goal, tfp);
         }
         catch (tf2::TransformException &ex) {
             RCLCPP_WARN(this->get_logger(), "%s", ex.what());
@@ -115,7 +133,7 @@ namespace xdwa_local_planner{
         if ((finish.seconds() - start.seconds()) > transform_tolerance_) {
             RCLCPP_WARN(this->get_logger(),
                         "XDWA Local Planner %s to odom transform timed out. Current time: %d, global_pose stamp %d, tolerance %d",
-                        goal->header.frame_id.c_str(), RCL_NS_TO_S(finish.nanoseconds()), goal->header.stamp,
+                        goal->header.frame_id.c_str(), finish.seconds(), goal->header.stamp,
                         transform_tolerance_);
         }
         return true;

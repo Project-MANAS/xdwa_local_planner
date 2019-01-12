@@ -7,11 +7,16 @@
 
 #include <memory>
 
+#include "rclcpp/rclcpp.hpp"
+
 #include "xdwa_local_planner/trajectory.h"
 
 namespace xdwa_local_planner{
     class TrajectoryScoreFunction{
     public:
+        virtual void initialize(rclcpp::Node::SharedPtr node, std::string costmap_topic,
+                                std::vector<std::vector<double>> footprint) = 0;
+
         virtual double scoreTrajectory(std::shared_ptr<Trajectory> tj) = 0;
 
         void setScale(double scale){
