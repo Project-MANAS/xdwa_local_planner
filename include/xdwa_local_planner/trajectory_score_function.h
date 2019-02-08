@@ -8,28 +8,33 @@
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 
 #include "xdwa_local_planner/trajectory.h"
 
-namespace xdwa_local_planner{
-    class TrajectoryScoreFunction{
-    public:
-        virtual void initialize(rclcpp::Node::SharedPtr node, std::string costmap_topic,
-                                std::vector<std::vector<double>> footprint) = 0;
+#include "pluginlib/class_list_macros.hpp"
 
-        virtual double scoreTrajectory(std::shared_ptr<Trajectory> tj) = 0;
+namespace xdwa_local_planner {
+class TrajectoryScoreFunction {
+ public:
+  virtual void initialize(rclcpp::Node::SharedPtr node,
+                          std::shared_ptr<tf2_ros::Buffer> buffer,
+                          geometry_msgs::msg::PoseStamped::SharedPtr goal,
+                          geometry_msgs::msg::PoseStamped::SharedPtr pose,
+                          std::string costmap_topic,
+                          std::vector<std::vector<double>> footprint) = 0;
 
-        void setScale(double scale){
-            scale_ = scale;
-        }
+  virtual double scoreTrajectory(std::shared_ptr<Trajectory> tj) = 0;
 
-        double getScale(){
-            return scale_;
-        }
+  rclcpp::Node::SharedPtr node_;
+  std::shared_ptr<tf2_ros::Buffer> buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tfl_;
+  geometry_msgs::msg::PoseStamped::SharedPtr goal_, pose_;
 
-    private:
-        double scale_;
-    };
+  double scale_;
+};
 }
 
 #endif //XDWA_LOCAL_PLANNER_TRAJECTORY_SCORE_FUNCTION_H
