@@ -2,18 +2,18 @@ cmake_minimum_required(VERSION 3.5)
 project(xdwa_local_planner)
 
 # Default to C99
-if(NOT CMAKE_C_STANDARD)
+if (NOT CMAKE_C_STANDARD)
     set(CMAKE_C_STANDARD 99)
-endif()
+endif ()
 
 # Default to C++14
-if(NOT CMAKE_CXX_STANDARD)
+if (NOT CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 14)
-endif()
+endif ()
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+if (CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
+endif ()
 
 add_compile_options(-fPIC)
 # find dependencies
@@ -26,7 +26,7 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
 
-if(BUILD_TESTING)
+if (BUILD_TESTING)
     find_package(ament_lint_auto REQUIRED)
     # the following line skips the linter which checks for copyrights
     # remove the line when a copyright and license is present in all source files
@@ -35,7 +35,7 @@ if(BUILD_TESTING)
     # remove the line when this package is a git repo
     set(ament_cmake_cpplint_FOUND TRUE)
     ament_lint_auto_find_test_dependencies()
-endif()
+endif ()
 
 include_directories(
         include
@@ -47,7 +47,6 @@ add_library(xdwa_local_planner_ros
         src/trajectory.cpp
         src/trajectory_generator.cpp
         src/trajectory_scorer.cpp
-        plugins/costmap_score_function.cpp
         )
 
 ament_target_dependencies(xdwa_local_planner_ros
@@ -61,7 +60,7 @@ ament_target_dependencies(xdwa_local_planner_ros
 
 add_library(critics SHARED
         plugins/costmap_score_function.cpp
-        )
+        plugins/goal_dist_score_function.cpp)
 
 ament_target_dependencies(critics rclcpp)
 target_link_libraries(critics xdwa_local_planner_ros)
@@ -69,12 +68,12 @@ pluginlib_export_plugin_description_file(xdwa_local_planner plugins_description.
 
 add_executable(xdwa_local_planner_node src/xdwa_local_planner_node.cpp)
 target_link_libraries(xdwa_local_planner_node xdwa_local_planner_ros)
-ament_target_dependencies(xdwa_local_planner_node rclcpp )
+ament_target_dependencies(xdwa_local_planner_node rclcpp)
 
 install(TARGETS xdwa_local_planner_node
-        DESTINATION bin/${PROJECT_NAME})
+        DESTINATION lib/${PROJECT_NAME})
 
-install(TARGETS xdwa_local_planner_ros
+install(TARGETS xdwa_local_planner_ros critics
         DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch

@@ -1,7 +1,12 @@
 <class_libraries>
-    <library path="layers">
-        <class type="xdwa_local_planner::CostmapScoreFunction"  base_class_type="xdwa_local_planner::TrajectoryScoreFunction">
+    <library path="critics">
+        <class type="xdwa_local_planner::CostmapScoreFunction"
+               base_class_type="xdwa_local_planner::TrajectoryScoreFunction">
             <description>Trajectory scorer for costmap</description>
+        </class>
+        <class type="xdwa_local_planner::GoalDistScoreFunction"
+               base_class_type="xdwa_local_planner::TrajectoryScoreFunction">
+            <description>Trajectory scorer based on robot's distance from goal</description>
         </class>
     </library>
 </class_libraries>
