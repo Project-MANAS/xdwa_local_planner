@@ -27,8 +27,7 @@ void GoalDistScoreFunction::initialize(rclcpp::Node::SharedPtr node,
 double GoalDistScoreFunction::scoreTrajectory(std::shared_ptr<xdwa_local_planner::Trajectory> tj) {
   double cost = 0;
   for (int i = tj->num_points_scored_ + 1; i <= tj->num_points_; ++i) {
-    cost += std::max(1 / getDist(tj->x_[i], tj->y_[i]), 1e-7);
-    tj->num_points_scored_++;
+    cost += getDist(tj->x_[i], tj->y_[i]);
   }
   return cost;
 }

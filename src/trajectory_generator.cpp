@@ -6,82 +6,69 @@
 
 namespace xdwa_local_planner {
 TrajectoryGenerator::TrajectoryGenerator() {
-  min_vel_x_ = -5;
+  min_vel_x_ = -1;
   max_vel_x_ = 5;
   min_vel_y_ = 0;
   max_vel_y_ = 0;
-  min_vel_theta_ = -2;
-  max_vel_theta_ = 2;
-  num_samples_x_ = 100;
-  num_samples_y_ = 100;
-  num_samples_theta_ = 100;
-  acc_lim_x_ = 1;
+  min_vel_theta_ = -0.57;
+  max_vel_theta_ = 0.57;
+  num_samples_x_ = 25;
+  num_samples_y_ = 0;
+  num_samples_theta_ = 25;
+  acc_lim_x_ = 2;
   acc_lim_y_ = 0;
   acc_lim_theta_ = 1;
-  deacc_lim_x_ = -1;
+  deacc_lim_x_ = -0.5;
   deacc_lim_y_ = 0;
   deacc_lim_theta_ = -1;
   min_trans_vel_ = 0;
-  max_trans_vel_ = 10;
+  max_trans_vel_ = 3;
   min_rot_vel_ = 0;
-  max_rot_vel_ = 5;
-  sim_period_ = 0.5;
-  samples_generated_ = false;
+  max_rot_vel_ = 1.57;
+  sim_period_ = 0.05;
 }
 
-TrajectoryGenerator::~TrajectoryGenerator() {
+TrajectoryGenerator::~TrajectoryGenerator() {}
 
-}
+void TrajectoryGenerator::generateSamples(double vel_x, double vel_y, double vel_theta) {
+  vsamples_.clear();
+  double max_vel_x = std::min(max_vel_x_, vel_x + acc_lim_x_ * sim_period_);
+  double max_vel_y = std::min(max_vel_y_, vel_y + acc_lim_y_ * sim_period_);
+  double max_vel_theta = std::min(max_vel_theta_, vel_theta + acc_lim_theta_ * sim_period_);
 
-void TrajectoryGenerator::generateSamples() {
-  double step_size_x = std::max(1e-30, (max_vel_x_ - min_vel_x_) / (std::max(1, (num_samples_x_ - 1))));
-  double step_size_y = std::max(1e-30, (max_vel_y_ - min_vel_y_) / (std::max(1, (num_samples_y_ - 1))));
-  double
-      step_size_theta_ = std::max(1e-30, (max_vel_theta_ - min_vel_theta_) / (std::max(1, (num_samples_theta_ - 1))));
+  double min_vel_x = std::min(std::max(min_vel_x_, vel_x + deacc_lim_x_ * sim_period_), max_vel_x);
+  double min_vel_y = std::min(std::max(min_vel_y_, vel_y + deacc_lim_y_ * sim_period_), max_vel_y);
+  double min_vel_theta = std::min(std::max(min_vel_theta_, vel_theta + deacc_lim_theta_ * sim_period_), max_vel_theta);
 
-  for (double i = min_vel_x_; i <= max_vel_x_; i += step_size_x) {
-    for (double j = min_vel_y_; j <= max_vel_y_; j += step_size_y) {
-      for (double k = min_vel_theta_; k <= max_vel_theta_; k += step_size_theta_) {
+  double step_size_x = (max_vel_x - min_vel_x) / (std::max(1, (num_samples_x_ - 1)));
+  double step_size_y = (max_vel_y - min_vel_y) / (std::max(1, (num_samples_y_ - 1)));
+  double step_size_theta = (max_vel_theta - min_vel_theta) / (std::max(1, (num_samples_theta_ - 1)));
+
+  step_size_x = step_size_x == 0 ? 1 : step_size_x;
+  step_size_y = step_size_y == 0 ? 1 : step_size_y;
+  step_size_theta = step_size_theta == 0 ? 1 : step_size_theta;
+
+  for (double i = min_vel_x; i <= max_vel_x; i += step_size_x) {
+    for (double j = min_vel_y; j <= max_vel_y; j += step_size_y) {
+      for (double k = min_vel_theta; k <= max_vel_theta; k += step_size_theta) {
         double vmag = hypot(i, j);
-        if (vmag < min_trans_vel_ || vmag > max_trans_vel_ || fabs(k) < min_rot_vel_ || fabs(k) > max_rot_vel_)
-          continue;
-        double minx = i - acc_lim_x_ * sim_period_;
-        double maxx = i - deacc_lim_x_ * sim_period_;
-        double miny = j - acc_lim_y_ * sim_period_;
-        double maxy = j - deacc_lim_y_ * sim_period_;
-        double mintheta = k - acc_lim_theta_ * sim_period_;
-        double maxtheta = k - deacc_lim_theta_ * sim_period_;
-        std::shared_ptr<VelocitySample>
-            vs(std::make_shared<VelocitySample>(i, j, k, minx, miny, mintheta, maxx, maxy, maxtheta));
+//        if (vmag < min_trans_vel_ || vmag > max_trans_vel_ || fabs(k) < min_rot_vel_ || fabs(k) > max_rot_vel_)
+//          continue;
+        std::shared_ptr<VelocitySample> vs(std::make_shared<VelocitySample>(i, j, k));
         vsamples_.push_back(vs);
       }
     }
   }
-//        Trajectory tj;
-//        tj.num_points_ = 0;
-//        std::cout<<**(--vsamples_.end());
-//        generateTrajectory(*--vsamples_.end(), 20, 1, 1, 4.95, 0, 0, 5, 5, &tj);
-//        std::cout<<tj;
-
-  samples_generated_ = true;
 }
 
 bool TrajectoryGenerator::generateTrajectory(std::shared_ptr<VelocitySample> vs,
                                              double pose_x,
                                              double pose_y,
                                              double pose_theta,
-                                             double vel_x,
-                                             double vel_y,
-                                             double vel_theta,
                                              double sim_time,
                                              int num_steps,
                                              std::shared_ptr<Trajectory> traj) {
-  if (vs->vminsample_x_ > vel_x || vs->vmaxsample_x_ < vel_x)
-    return false;
-//        if(vs->vminsample_y_ > vel_y || vs->vmaxsample_y_ < vel_y)
-//            return false;
-  if (vs->vminsample_theta_ > vel_theta || vs->vmaxsample_theta_ < vel_theta)
-    return false;
+
   double dt = sim_time / num_steps;
 
   for (int i = 0; i < num_steps; ++i) {
@@ -99,8 +86,8 @@ bool TrajectoryGenerator::generateTrajectory(std::shared_ptr<VelocitySample> vs,
 
 void TrajectoryGenerator::computeNewPose(double &x, double &y, double &theta, double vel_x, double vel_y,
                                          double vel_theta, double dt) {
-  x = x + ((vel_x * cos(theta)) - (vel_y * sin(theta)) * dt);
-  y = y + ((vel_x * sin(theta)) + (vel_y * cos(theta)) * dt);
+  x = x + ((vel_x * cos(theta)) - (vel_y * sin(theta))) * dt;
+  y = y + ((vel_x * sin(theta)) + (vel_y * cos(theta))) * dt;
   theta = theta + vel_theta * dt;
 }
 }

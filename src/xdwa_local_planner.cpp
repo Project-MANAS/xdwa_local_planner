@@ -10,15 +10,16 @@ XDWALocalPlanner::XDWALocalPlanner() :
     control_freq_(20.0),
     global_frame_("map"),
     base_frame_("base_link"),
-    xy_goal_tolerance_(0),
-    yaw_goal_tolerance_(0),
+    xy_goal_tolerance_(1),
+    yaw_goal_tolerance_(1),
     transform_tolerance_(1.0),
     odom_topic_("/odom"),
     vel_init_(false),
     goal_topic_("/goal"),
     depth_(0),
     num_best_traj_(5),
-    num_steps_(5),
+    num_steps_(50),
+    sim_time_(1),
     cmd_vel_topic_("/cmd_vel"),
     costmap_topic_("/map"),
     plugin_loader_("xdwa_local_planner", "xdwa_local_planner::TrajectoryScoreFunction") {
@@ -33,14 +34,18 @@ XDWALocalPlanner::XDWALocalPlanner() :
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>
       (odom_topic_, std::bind(&XDWALocalPlanner::velocityCallback, this, std::placeholders::_1));
 
-  goal_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>
-      (goal_topic_, std::bind(&XDWALocalPlanner::computeTwist, this, std::placeholders::_1));
+  goal_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+      goal_topic_,
+      [this](const geometry_msgs::msg::PoseStamped::SharedPtr goal) {
+        *goal_ = *goal;
+        std::thread compute_twist_thread = std::thread(&XDWALocalPlanner::computeTwist, this, goal_);
+        compute_twist_thread.detach();
+      });
 
   cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(cmd_vel_topic_);
 
-  tg_->generateSamples();
+  traj_pub_ = this->create_publisher<nav_msgs::msg::Path>("trajectories");
 
-  plugins_list_.emplace_back("xdwa_local_planner::CostmapScoreFunction");
   plugins_list_.emplace_back("xdwa_local_planner::GoalDistScoreFunction");
   for (const std::string &type : plugins_list_) {
     pluginLoader(type);
@@ -66,14 +71,14 @@ void XDWALocalPlanner::pluginLoader(std::string type) {
 
 void XDWALocalPlanner::computeTwist(const geometry_msgs::msg::PoseStamped::SharedPtr goal) {
   *goal_ = *goal;
-  pose_->pose = odom_.pose.pose;
-
   rclcpp::Rate rate(1.0);
   while (!getLocalGoal()) {
     rate.sleep();
   }
   rclcpp::Rate control_rate(control_freq_);
   while (!goalReached()) {
+    pose_->pose = odom_->pose.pose;
+    pose_->header = odom_->header;
     if (!getRobotPose()) {
       RCLCPP_INFO(this->get_logger(), "Could not get robot pose");
       control_rate.sleep();
@@ -90,7 +95,7 @@ void XDWALocalPlanner::computeTwist(const geometry_msgs::msg::PoseStamped::Share
       RCLCPP_INFO(this->get_logger(), "XDWA Local Planner failed to produce a valid path.");
     }
 
-//    control_rate.sleep();
+    control_rate.sleep();
     rclcpp::Time finish = get_clock()->now();
     double time_taken = (finish.nanoseconds() - start.nanoseconds()) / 1e9;
     if (time_taken > 1.0 / control_freq_) {
@@ -99,15 +104,18 @@ void XDWALocalPlanner::computeTwist(const geometry_msgs::msg::PoseStamped::Share
                   control_freq_, time_taken);
     }
   }
+  cmd_vel_.linear.set__x(0);
+  cmd_vel_.linear.set__y(0);
+  cmd_vel_.angular.set__z(0);
+  cmd_vel_pub_->publish(cmd_vel_);
   RCLCPP_INFO(this->get_logger(), "Goal Reached");
 }
 
 bool XDWALocalPlanner::getRobotPose() {
-  pose_->header.frame_id = base_frame_;
   pose_->header.stamp = get_clock()->now();
   rclcpp::Time start = get_clock()->now();
   try {
-    geometry_msgs::msg::TransformStamped tfp = buffer_->lookupTransform("odom", global_frame_, tf2::TimePointZero);
+    geometry_msgs::msg::TransformStamped tfp = buffer_->lookupTransform(global_frame_, pose_->header.frame_id, tf2::TimePointZero);
     tf2::doTransform(*pose_, *pose_, tfp);
   }
   catch (tf2::TransformException &ex) {
@@ -130,7 +138,7 @@ bool XDWALocalPlanner::getRobotPose() {
 bool XDWALocalPlanner::getLocalGoal() {
   rclcpp::Time start = get_clock()->now();
   try {
-    geometry_msgs::msg::TransformStamped tfp = buffer_->lookupTransform("odom", goal_->header.frame_id, tf2::TimePointZero);
+    geometry_msgs::msg::TransformStamped tfp = buffer_->lookupTransform(global_frame_, goal_->header.frame_id, tf2::TimePointZero);
     tf2::doTransform(*goal_, *goal_, tfp);
   }
   catch (tf2::TransformException &ex) {
@@ -155,9 +163,7 @@ bool XDWALocalPlanner::goalReached() {
 }
 
 bool XDWALocalPlanner::computeBestTrajectory(std::shared_ptr<Trajectory> &best_traj) {
-  if (!tg_->samples_generated_)
-    return false;
-
+  tg_->generateSamples(odom_->twist.twist.linear.x, odom_->twist.twist.linear.y, odom_->twist.twist.angular.z);
   std::vector<std::shared_ptr<Trajectory>> trajectories;
   for (auto &vsample : tg_->vsamples_) {
     std::shared_ptr<Trajectory> tj = std::make_shared<Trajectory>();
@@ -168,30 +174,42 @@ bool XDWALocalPlanner::computeBestTrajectory(std::shared_ptr<Trajectory> &best_t
                                 pose_->pose.position.x,
                                 pose_->pose.position.y,
                                 tf2::getYaw(pose_->pose.orientation),
-                                odom_.twist.twist.linear.x,
-                                odom_.twist.twist.linear.y,
-                                odom_.twist.twist.angular.z,
                                 sim_time_,
                                 num_steps_,
                                 tj)) {
-      if (ts_->getTrajectoryScore(tj) >= 0) {
+      ts_->getTrajectoryScore(tj);
+      if (tj->cost_ >= 0) {
         tj->num_points_scored_ = tj->num_points_;
         trajectories.push_back(tj);
       }
     }
   }
 
+  nav_msgs::msg::Path msg_;
+  msg_.header.stamp = get_clock()->now();
+  msg_.header.frame_id = global_frame_;
+  for(auto &traj:trajectories) {
+    for(int i = 0; i < traj->num_points_; i++){
+      geometry_msgs::msg::PoseStamped msg;
+      msg.pose.position.set__x(traj->x_[i]);
+      msg.pose.position.set__y(traj->y_[i]);
+      msg_.poses.emplace_back(msg);
+    }
+  }
+  traj_pub_->publish(msg_);
+
   if (trajectories.empty())
     return false;
 
   trajectories = getBestTrajectories(trajectories);
+
   for (int i = 1; i < depth_; ++i) {
     std::vector<std::shared_ptr<Trajectory>> traj;
     for (auto &tj : trajectories) {
       for (auto &vsample: tg_->vsamples_) {
-        if (tg_->generateTrajectory(vsample, tj->x_.back(), tj->y_.back(), tj->theta_.back(), tj->vel_x_.back(),
-                                    tj->vel_y_.back(), tj->vel_theta_.back(), sim_time_, num_steps_, tj)) {
-          if (ts_->getTrajectoryScore(tj) >= 0) {
+        if (tg_->generateTrajectory(vsample, tj->x_.back(), tj->y_.back(), tj->theta_.back(), sim_time_, num_steps_, tj)) {
+          ts_->getTrajectoryScore(tj);
+          if (tj->cost_ >= 0) {
             tj->num_points_scored_ = tj->num_points_;
             traj.push_back(tj);
           }
@@ -207,6 +225,7 @@ bool XDWALocalPlanner::computeBestTrajectory(std::shared_ptr<Trajectory> &best_t
     if (best_traj->cost_ > traj->cost_)
       best_traj = traj;
   }
+
   return true;
 }
 
@@ -217,20 +236,20 @@ std::vector<std::shared_ptr<Trajectory>> XDWALocalPlanner::getBestTrajectories(s
     int j = i;
     int index = i;
     for (std::shared_ptr<Trajectory> traj = trajectories[j]; j < trajectories.size() - 1; traj = trajectories[++j]) {
-      if (tj->cost_ >= traj->cost_) {
+      if (tj->cost_ > traj->cost_) {
         tj = traj;
       }
       index = j;
     }
-    *trajectories[index] = *trajectories[i];
-    *trajectories[i] = *tj;
     best_traj.push_back(tj);
+    trajectories[index] = trajectories[i];
+    trajectories[i] = tj;
   }
   return best_traj;
 }
 
 void XDWALocalPlanner::velocityCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
-  odom_ = *msg;
+  odom_ = msg;
   vel_init_ = true;
 }
 }

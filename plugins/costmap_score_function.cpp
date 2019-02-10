@@ -37,7 +37,6 @@ double CostmapScoreFunction::scoreTrajectory(std::shared_ptr<Trajectory> tj) {
     if (!worldToMap(tj->x_[i], tj->y_[i], mx, my))
       return -1;
     cost += getCost(tj->x_[i], tj->y_[i], tj->theta_[i]);
-    tj->num_points_scored_++;
   }
   return cost;
 }

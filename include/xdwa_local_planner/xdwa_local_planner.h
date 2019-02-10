@@ -10,6 +10,7 @@
 #include "tf2_ros/transform_listener.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "nav_msgs/msg/odometry.hpp"
+#include "nav_msgs/msg/path.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "pluginlib/exceptions.hpp"
@@ -60,7 +61,7 @@ class XDWALocalPlanner : public rclcpp::Node {
 
   geometry_msgs::msg::PoseStamped::SharedPtr pose_, goal_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-  nav_msgs::msg::Odometry odom_;
+  nav_msgs::msg::Odometry::SharedPtr odom_;
   std::string odom_topic_;
   bool vel_init_;
 
@@ -76,12 +77,10 @@ class XDWALocalPlanner : public rclcpp::Node {
   std::shared_ptr<TrajectoryGenerator> tg_;
   std::shared_ptr<TrajectoryScorer> ts_;
 
-  double pose_x_, pose_y_, pose_theta_;
-  double vel_x_, vel_y_, vel_theta_;
-
   std::string cmd_vel_topic_;
   geometry_msgs::msg::Twist cmd_vel_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr traj_pub_;
 
   std::string costmap_topic_;
   std::vector<std::vector<double>> footprint_;

@@ -13,17 +13,17 @@ void TrajectoryScorer::loadPlugin(std::shared_ptr<xdwa_local_planner::Trajectory
   critics_list_.push_back(plugin);
 }
 
-double TrajectoryScorer::getTrajectoryScore(std::shared_ptr<Trajectory> tj) {
-  double traj_cost = tj->cost_;
+void TrajectoryScorer::getTrajectoryScore(std::shared_ptr<Trajectory> tj) {
   for (const auto &critic : critics_list_) {
     double scale = critic->scale_;
     if (scale == 0)
       continue;
     double cost = critic->scoreTrajectory(tj);
-    if (cost == -1)
-      return -1;
-    traj_cost += cost * scale;
+    if (cost == -1) {
+      tj->cost_ = -1;
+      break;
+    }
+    tj->cost_ += cost * scale;
   }
-  return traj_cost;
 }
 }
