@@ -16,8 +16,8 @@ XDWALocalPlanner::XDWALocalPlanner() :
     odom_topic_("/odom"),
     vel_init_(false),
     goal_topic_("/goal"),
-    depth_(0),
-    num_best_traj_(5),
+    depth_(5),
+    num_best_traj_(10),
     num_steps_(50),
     sim_time_(1),
     cmd_vel_topic_("/cmd_vel"),
@@ -185,19 +185,6 @@ bool XDWALocalPlanner::computeBestTrajectory(std::shared_ptr<Trajectory> &best_t
     }
   }
 
-  nav_msgs::msg::Path msg_;
-  msg_.header.stamp = get_clock()->now();
-  msg_.header.frame_id = global_frame_;
-  for(auto &traj:trajectories) {
-    for(int i = 0; i < traj->num_points_; i++){
-      geometry_msgs::msg::PoseStamped msg;
-      msg.pose.position.set__x(traj->x_[i]);
-      msg.pose.position.set__y(traj->y_[i]);
-      msg_.poses.emplace_back(msg);
-    }
-  }
-  traj_pub_->publish(msg_);
-
   if (trajectories.empty())
     return false;
 
@@ -206,20 +193,36 @@ bool XDWALocalPlanner::computeBestTrajectory(std::shared_ptr<Trajectory> &best_t
   for (int i = 1; i < depth_; ++i) {
     std::vector<std::shared_ptr<Trajectory>> traj;
     for (auto &tj : trajectories) {
+      tg_->generateSamples(tj->vel_x_.back(), tj->vel_y_.back(), tj->vel_theta_.back());
       for (auto &vsample: tg_->vsamples_) {
-        if (tg_->generateTrajectory(vsample, tj->x_.back(), tj->y_.back(), tj->theta_.back(), sim_time_, num_steps_, tj)) {
-          ts_->getTrajectoryScore(tj);
-          if (tj->cost_ >= 0) {
-            tj->num_points_scored_ = tj->num_points_;
-            traj.push_back(tj);
+        auto tj_new = std::make_shared<Trajectory>(tj);
+        if (tg_->generateTrajectory(vsample, tj_new->x_.back(), tj_new->y_.back(), tj_new->theta_.back(),
+            sim_time_, num_steps_, tj_new)) {
+          ts_->getTrajectoryScore(tj_new);
+          if (tj_new->cost_ >= 0) {
+            tj_new->num_points_scored_ = tj_new->num_points_;
+            traj.push_back(tj_new);
           }
         }
       }
     }
-    trajectories = traj;
+    trajectories = getBestTrajectories(traj);
     if (trajectories.empty())
       return false;
   }
+
+  nav_msgs::msg::Path msg_;
+  msg_.header.stamp = get_clock()->now();
+  msg_.header.frame_id = global_frame_;
+  for(auto &tj:trajectories) {
+    for(int i = 0; i < tj->num_points_; i++){
+      geometry_msgs::msg::PoseStamped msg;
+      msg.pose.position.set__x(tj->x_[i]);
+      msg.pose.position.set__y(tj->y_[i]);
+      msg_.poses.emplace_back(msg);
+    }
+  }
+  traj_pub_->publish(msg_);
   best_traj = trajectories[0];
   for (auto &traj: trajectories) {
     if (best_traj->cost_ > traj->cost_)
@@ -238,8 +241,8 @@ std::vector<std::shared_ptr<Trajectory>> XDWALocalPlanner::getBestTrajectories(s
     for (std::shared_ptr<Trajectory> traj = trajectories[j]; j < trajectories.size() - 1; traj = trajectories[++j]) {
       if (tj->cost_ > traj->cost_) {
         tj = traj;
+        index = j;
       }
-      index = j;
     }
     best_traj.push_back(tj);
     trajectories[index] = trajectories[i];

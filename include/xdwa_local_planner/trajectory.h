@@ -6,23 +6,26 @@
 #define XDWA_LOCAL_PLANNER_TRAJECTORY_H
 
 #include <iostream>
+#include <memory>
 #include <vector>
 
-namespace xdwa_local_planner{
-    class Trajectory{
-    public:
-        Trajectory();
-        ~Trajectory();
+namespace xdwa_local_planner {
+class Trajectory {
+ public:
+  Trajectory();
+  Trajectory(std::shared_ptr<Trajectory> trajectory);
 
-        friend
-        std::ostream & operator << (std::ostream &out, Trajectory traj);
+  ~Trajectory();
 
-        std::vector<double> x_, y_, theta_;
-        std::vector<double> vel_x_, vel_y_, vel_theta_;
-        double cost_;
+  friend
+  std::ostream &operator<<(std::ostream &out, Trajectory traj);
 
-        int num_points_, num_points_scored_;
-    };
+  std::vector<double> x_, y_, theta_;
+  std::vector<double> vel_x_, vel_y_, vel_theta_;
+  double cost_;
+
+  int num_points_, num_points_scored_;
+};
 }
 
 #endif //XDWA_LOCAL_PLANNER_TRAJECTORY_H
