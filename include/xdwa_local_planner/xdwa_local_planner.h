@@ -36,7 +36,7 @@ class XDWALocalPlanner : public rclcpp::Node {
   }
 
  private:
-  void computeTwist(geometry_msgs::msg::PoseStamped::SharedPtr goal);
+  void computeTwist();
 
   bool getRobotPose();
 
@@ -53,6 +53,8 @@ class XDWALocalPlanner : public rclcpp::Node {
   double control_freq_;
   std::string global_frame_, base_frame_;
   double xy_goal_tolerance_, yaw_goal_tolerance_;
+  bool compute_twist_stop_;
+  std::thread compute_twist_thread_;
 
   tf2::Duration duration = tf2::Duration(std::chrono::seconds(1));
   std::shared_ptr<tf2_ros::Buffer> buffer_;

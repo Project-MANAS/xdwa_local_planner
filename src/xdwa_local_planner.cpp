@@ -12,6 +12,7 @@ XDWALocalPlanner::XDWALocalPlanner() :
     base_frame_("base_link"),
     xy_goal_tolerance_(1),
     yaw_goal_tolerance_(1),
+    compute_twist_stop_(false),
     transform_tolerance_(1.0),
     odom_topic_("/odom"),
     vel_init_(false),
@@ -38,8 +39,11 @@ XDWALocalPlanner::XDWALocalPlanner() :
       goal_topic_,
       [this](const geometry_msgs::msg::PoseStamped::SharedPtr goal) {
         *goal_ = *goal;
-        std::thread compute_twist_thread = std::thread(&XDWALocalPlanner::computeTwist, this, goal_);
-        compute_twist_thread.detach();
+        compute_twist_stop_ = true;
+        if (compute_twist_thread_.joinable())
+          compute_twist_thread_.join();
+        compute_twist_stop_ = false;
+        compute_twist_thread_ = std::thread(&XDWALocalPlanner::computeTwist, this);
       });
 
   cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(cmd_vel_topic_);
@@ -69,14 +73,15 @@ void XDWALocalPlanner::pluginLoader(std::string type) {
   }
 }
 
-void XDWALocalPlanner::computeTwist(const geometry_msgs::msg::PoseStamped::SharedPtr goal) {
-  *goal_ = *goal;
+void XDWALocalPlanner::computeTwist() {
   rclcpp::Rate rate(1.0);
   while (!getLocalGoal()) {
     rate.sleep();
   }
   rclcpp::Rate control_rate(control_freq_);
   while (!goalReached()) {
+    if (compute_twist_stop_)
+      return;
     pose_->pose = odom_->pose.pose;
     pose_->header = odom_->header;
     if (!getRobotPose()) {
@@ -115,7 +120,8 @@ bool XDWALocalPlanner::getRobotPose() {
   pose_->header.stamp = get_clock()->now();
   rclcpp::Time start = get_clock()->now();
   try {
-    geometry_msgs::msg::TransformStamped tfp = buffer_->lookupTransform(global_frame_, pose_->header.frame_id, tf2::TimePointZero);
+    geometry_msgs::msg::TransformStamped
+        tfp = buffer_->lookupTransform(global_frame_, pose_->header.frame_id, tf2::TimePointZero);
     tf2::doTransform(*pose_, *pose_, tfp);
   }
   catch (tf2::TransformException &ex) {
@@ -138,7 +144,8 @@ bool XDWALocalPlanner::getRobotPose() {
 bool XDWALocalPlanner::getLocalGoal() {
   rclcpp::Time start = get_clock()->now();
   try {
-    geometry_msgs::msg::TransformStamped tfp = buffer_->lookupTransform(global_frame_, goal_->header.frame_id, tf2::TimePointZero);
+    geometry_msgs::msg::TransformStamped
+        tfp = buffer_->lookupTransform(global_frame_, goal_->header.frame_id, tf2::TimePointZero);
     tf2::doTransform(*goal_, *goal_, tfp);
   }
   catch (tf2::TransformException &ex) {
@@ -197,7 +204,7 @@ bool XDWALocalPlanner::computeBestTrajectory(std::shared_ptr<Trajectory> &best_t
       for (auto &vsample: tg_->vsamples_) {
         auto tj_new = std::make_shared<Trajectory>(tj);
         if (tg_->generateTrajectory(vsample, tj_new->x_.back(), tj_new->y_.back(), tj_new->theta_.back(),
-            sim_time_, num_steps_, tj_new)) {
+                                    sim_time_, num_steps_, tj_new)) {
           ts_->getTrajectoryScore(tj_new);
           if (tj_new->cost_ >= 0) {
             tj_new->num_points_scored_ = tj_new->num_points_;
@@ -214,8 +221,8 @@ bool XDWALocalPlanner::computeBestTrajectory(std::shared_ptr<Trajectory> &best_t
   nav_msgs::msg::Path msg_;
   msg_.header.stamp = get_clock()->now();
   msg_.header.frame_id = global_frame_;
-  for(auto &tj:trajectories) {
-    for(int i = 0; i < tj->num_points_; i++){
+  for (auto &tj:trajectories) {
+    for (int i = 0; i < tj->num_points_; i++) {
       geometry_msgs::msg::PoseStamped msg;
       msg.pose.position.set__x(tj->x_[i]);
       msg.pose.position.set__y(tj->y_[i]);
