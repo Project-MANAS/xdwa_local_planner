@@ -70,15 +70,14 @@ bool TrajectoryGenerator::generateTrajectory(std::shared_ptr<VelocitySample> vs,
                                              std::shared_ptr<Trajectory> traj) {
 
   double dt = sim_time / num_steps;
-
+  traj->vel_x_.push_back(vs->vsample_x_);
+  traj->vel_y_.push_back(vs->vsample_y_);
+  traj->vel_theta_.push_back(vs->vsample_theta_);
   for (int i = 0; i < num_steps; ++i) {
     computeNewPose(pose_x, pose_y, pose_theta, vs->vsample_x_, vs->vsample_y_, vs->vsample_theta_, dt);
     traj->x_.push_back(pose_x);
     traj->y_.push_back(pose_y);
     traj->theta_.push_back(pose_theta);
-    traj->vel_x_.push_back(vs->vsample_x_);
-    traj->vel_y_.push_back(vs->vsample_y_);
-    traj->vel_theta_.push_back(vs->vsample_theta_);
     ++traj->num_points_;
   }
   return true;
