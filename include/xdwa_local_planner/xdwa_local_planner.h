@@ -5,6 +5,8 @@
 #ifndef XDWA_LOCAL_PLANNER_XDWA_LOCAL_PLANNER_H
 #define XDWA_LOCAL_PLANNER_XDWA_LOCAL_PLANNER_H
 
+#include <algorithm>
+
 #include "rclcpp/rclcpp.hpp"
 #include "tf2/utils.h"
 #include "tf2_ros/transform_listener.h"

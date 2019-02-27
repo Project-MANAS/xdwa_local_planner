@@ -235,25 +235,34 @@ bool XDWALocalPlanner::computeBestTrajectory(std::shared_ptr<Trajectory> &best_t
     if (best_traj->cost_ > traj->cost_)
       best_traj = traj;
   }
-
   return true;
 }
 
 std::vector<std::shared_ptr<Trajectory>> XDWALocalPlanner::getBestTrajectories(std::vector<std::shared_ptr<Trajectory>> trajectories) {
   std::vector<std::shared_ptr<Trajectory>> best_traj;
-  for (int i = 0; i < num_best_traj_ && i < trajectories.size(); ++i) {
-    std::shared_ptr<Trajectory> tj = trajectories[i];
-    int j = i;
-    int index = i;
-    for (std::shared_ptr<Trajectory> traj = trajectories[j]; j < trajectories.size() - 1; traj = trajectories[++j]) {
-      if (tj->cost_ > traj->cost_) {
-        tj = traj;
-        index = j;
+  int num_best_traj = std::min(num_best_traj_, (int) trajectories.size());
+  double max_cost = trajectories[0]->cost_;
+  int index = 0;
+  for (int i = 0; i < num_best_traj; ++i) {
+    best_traj.push_back(trajectories[i]);
+    if (trajectories[i]->cost_ > max_cost) {
+      max_cost = trajectories[i]->cost_;
+      index = i;
+    }
+  }
+
+  for (int i = num_best_traj; i < trajectories.size(); ++i) {
+    if (trajectories[i]->cost_ < max_cost) {
+      best_traj[index] = trajectories[i];
+      max_cost = best_traj[0]->cost_;
+      index = 0;
+      for (int j = 1; j < num_best_traj; ++j) {
+        if (best_traj[j]->cost_ > max_cost) {
+          max_cost = best_traj[j]->cost_;
+          index = j;
+        }
       }
     }
-    best_traj.push_back(tj);
-    trajectories[index] = trajectories[i];
-    trajectories[i] = tj;
   }
   return best_traj;
 }
