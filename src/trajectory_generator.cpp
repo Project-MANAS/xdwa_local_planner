@@ -7,7 +7,7 @@
 namespace xdwa_local_planner {
 TrajectoryGenerator::TrajectoryGenerator() {
   min_vel_x_ = -1;
-  max_vel_x_ = 5;
+  max_vel_x_ = 1;
   min_vel_y_ = 0;
   max_vel_y_ = 0;
   min_vel_theta_ = -0.57;
@@ -15,17 +15,17 @@ TrajectoryGenerator::TrajectoryGenerator() {
   num_samples_x_ = 25;
   num_samples_y_ = 0;
   num_samples_theta_ = 25;
-  acc_lim_x_ = 2;
+  acc_lim_x_ = 1;
   acc_lim_y_ = 0;
-  acc_lim_theta_ = 1;
+  acc_lim_theta_ = 0.1;
   deacc_lim_x_ = -0.5;
   deacc_lim_y_ = 0;
   deacc_lim_theta_ = -1;
   min_trans_vel_ = 0;
-  max_trans_vel_ = 3;
+  max_trans_vel_ = 1;
   min_rot_vel_ = 0;
   max_rot_vel_ = 1.57;
-  sim_period_ = 0.05;
+  sim_period_ = 1;
 }
 
 TrajectoryGenerator::~TrajectoryGenerator() {}

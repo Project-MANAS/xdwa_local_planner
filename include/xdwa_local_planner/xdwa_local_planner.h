@@ -33,7 +33,7 @@ class XDWALocalPlanner : public rclcpp::Node {
     return costmap_topic_;
   }
 
-  std::vector<std::vector<double>> getRobotFootprint() {
+  std::vector<std::array<double, 2>> getRobotFootprint() {
     return footprint_;
   }
 
@@ -87,7 +87,7 @@ class XDWALocalPlanner : public rclcpp::Node {
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr traj_pub_;
 
   std::string costmap_topic_;
-  std::vector<std::vector<double>> footprint_;
+  std::vector<std::array<double, 2>> footprint_;
   std::vector<std::string> plugins_list_;
   pluginlib::ClassLoader<xdwa_local_planner::TrajectoryScoreFunction> plugin_loader_;
 };

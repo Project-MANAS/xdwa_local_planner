@@ -25,7 +25,7 @@ class GoalDistScoreFunction : public TrajectoryScoreFunction {
                   geometry_msgs::msg::PoseStamped::SharedPtr goal,
                   geometry_msgs::msg::PoseStamped::SharedPtr pose,
                   std::string costmap_topic,
-                  std::vector<std::vector<double>> footprint) override;
+                  std::vector<std::array<double, 2>> footprint) override;
 
   double scoreTrajectory(std::shared_ptr<Trajectory> tj) override;
 

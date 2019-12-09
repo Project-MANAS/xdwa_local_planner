@@ -15,13 +15,16 @@ void CostmapScoreFunction::initialize(
     geometry_msgs::msg::PoseStamped::SharedPtr goal,
     geometry_msgs::msg::PoseStamped::SharedPtr pose,
     std::string costmap_topic,
-    std::vector<std::vector<double>> footprint
+    std::vector<std::array<double, 2>> footprint
 ) {
-  scale_ = 0;
+  scale_ = 1;
   node_ = node;
   costmap_sub_ = node_->create_subscription<nav_msgs::msg::OccupancyGrid>
       (costmap_topic, [this](const nav_msgs::msg::OccupancyGrid::SharedPtr costmap) {
         costmap_ = costmap;
+        for (signed char & i : costmap_->data) {
+            i = std::max(static_cast<int8_t>(0), i);
+        }
       });
 
   footprint_ = footprint;
@@ -32,11 +35,16 @@ void CostmapScoreFunction::initialize(
 
 double CostmapScoreFunction::scoreTrajectory(std::shared_ptr<Trajectory> tj) {
   double cost = 0;
-  for (int i = tj->num_points_scored_ + 1; i <= tj->num_points_; ++i) {
+  for (int i = tj->num_points_scored_; i < tj->num_points_; ++i) {
     unsigned int mx, my;
     if (!worldToMap(tj->x_[i], tj->y_[i], mx, my))
       return -1;
-    cost += getCost(tj->x_[i], tj->y_[i], tj->theta_[i]);
+    auto temp_cost = getCost(tj->x_[i], tj->y_[i], tj->theta_[i]);
+    if (temp_cost < 0) {
+      cost = -1;
+      break;
+    }
+    cost += temp_cost;
   }
   return cost;
 }
@@ -47,7 +55,6 @@ bool CostmapScoreFunction::worldToMap(double wx, double wy, unsigned int &mx, un
   double resolution = costmap_->info.resolution;
   unsigned int size_x = costmap_->info.width;
   unsigned int size_y = costmap_->info.height;
-
   if (wx < origin_x || wy < origin_y)
     return false;
 
@@ -137,7 +144,7 @@ double CostmapScoreFunction::lineCost(int x0, int x1, int y0, int y1) const {
 }
 
 double CostmapScoreFunction::pointCost(int x, int y) const {
-  auto cost = static_cast<unsigned char>(costmap_->data[x * costmap_->info.width + y]);
+  auto cost = static_cast<unsigned char>(costmap_->data[y * costmap_->info.width + x]);
   //if the cell is in an obstacle the path is invalid
   //if(cost == LETHAL_OBSTACLE){
   if (cost == 254 || cost == 255) {

@@ -15,7 +15,7 @@ void GoalDistScoreFunction::initialize(rclcpp::Node::SharedPtr node,
                                        geometry_msgs::msg::PoseStamped::SharedPtr goal,
                                        geometry_msgs::msg::PoseStamped::SharedPtr pose,
                                        std::string costmap_topic,
-                                       std::vector<std::vector<double>> footprint) {
+                                       std::vector<std::array<double, 2>> footprint) {
   scale_ = 1;
   node_ = node;
   buffer_ = buffer;
@@ -26,7 +26,7 @@ void GoalDistScoreFunction::initialize(rclcpp::Node::SharedPtr node,
 
 double GoalDistScoreFunction::scoreTrajectory(std::shared_ptr<xdwa_local_planner::Trajectory> tj) {
   double cost = 0;
-  for (int i = tj->num_points_scored_ + 1; i <= tj->num_points_; ++i) {
+  for (int i = tj->num_points_scored_; i < tj->num_points_; ++i) {
     cost += getDist(tj->x_[i], tj->y_[i]);
   }
   return cost;

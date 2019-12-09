@@ -24,7 +24,7 @@ class TrajectoryScoreFunction {
                           geometry_msgs::msg::PoseStamped::SharedPtr goal,
                           geometry_msgs::msg::PoseStamped::SharedPtr pose,
                           std::string costmap_topic,
-                          std::vector<std::vector<double>> footprint) = 0;
+                          std::vector<std::array<double, 2>> footprint) = 0;
 
   virtual double scoreTrajectory(std::shared_ptr<Trajectory> tj) = 0;
 

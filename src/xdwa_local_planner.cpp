@@ -7,7 +7,7 @@
 namespace xdwa_local_planner {
 XDWALocalPlanner::XDWALocalPlanner() :
     Node("costmap_ros"),
-    control_freq_(20.0),
+    control_freq_(1.0),
     global_frame_("map"),
     base_frame_("base_link"),
     xy_goal_tolerance_(1),
@@ -16,11 +16,11 @@ XDWALocalPlanner::XDWALocalPlanner() :
     transform_tolerance_(1.0),
     odom_topic_("/odom"),
     vel_init_(false),
-    goal_topic_("/goal"),
-    depth_(5),
+    goal_topic_("/move_base_simple/goal"),
+    depth_(1),
     num_best_traj_(10),
     num_steps_(50),
-    sim_time_(1),
+    sim_time_(3),
     cmd_vel_topic_("/cmd_vel"),
     costmap_topic_("/map"),
     plugin_loader_("xdwa_local_planner", "xdwa_local_planner::TrajectoryScoreFunction") {
@@ -50,7 +50,13 @@ XDWALocalPlanner::XDWALocalPlanner() :
 
   traj_pub_ = this->create_publisher<nav_msgs::msg::Path>("trajectories");
 
+  footprint_.push_back({1, 1});
+  footprint_.push_back({1, -1});
+  footprint_.push_back({-1, -1});
+  footprint_.push_back({-1, 1});
+
   plugins_list_.emplace_back("xdwa_local_planner::GoalDistScoreFunction");
+  plugins_list_.emplace_back("xdwa_local_planner::CostmapScoreFunction");
   for (const std::string &type : plugins_list_) {
     pluginLoader(type);
   }
